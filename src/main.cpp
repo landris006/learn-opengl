@@ -70,7 +70,6 @@ void render() {
   unsigned int vertexArrayObject;
   glGenVertexArrays(1, &vertexArrayObject);
   glBindVertexArray(vertexArrayObject);
-
   // clang-format off
   glVertexAttribPointer(
     0,
@@ -84,21 +83,35 @@ void render() {
 
   // clang-format off
   float vertices[] = {
-    -0.5f, -0.5f, 0.0f,
-     0.5f, -0.5f, 0.0f,
-     0.0f,  0.5f, 0.0f
+     0.5f,  0.5f,  0.0f,
+     0.5f, -0.5f,  0.0f,
+    -0.5f, -0.5f,  0.0f,
+    -0.5f,  0.5f,  0.0f
+  };
+  unsigned int indices[] = {
+    0, 1, 3,
+    1, 2, 3
   };
   // clang-format on
 
   unsigned int vertexBufferObject;
   glGenBuffers(1, &vertexBufferObject);
-
   glBindBuffer(GL_ARRAY_BUFFER, vertexBufferObject);
   glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
 
+  unsigned int elementBufferObject;
+  glGenBuffers(1, &elementBufferObject);
+  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, elementBufferObject);
+  glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices,
+               GL_STATIC_DRAW);
+
   glUseProgram(shaderProgram);
 
-  glDrawArrays(GL_TRIANGLES, 0, 3);
+  // glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+
+  glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+
+  glBindVertexArray(0);
 
   glDeleteShader(vertexShader);
   glDeleteShader(fragmentShader);
