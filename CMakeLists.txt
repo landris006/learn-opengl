@@ -13,8 +13,9 @@ set(GLFW_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
 
 add_subdirectory(dependencies/glfw)
+add_subdirectory(dependencies/glm)
 
 find_package(OpenGL REQUIRED)
 
-target_link_libraries(${PROJECT_NAME} glfw ${GLFW_LIBRARIES} OpenGL::GL)
+target_link_libraries(${PROJECT_NAME} glfw ${GLFW_LIBRARIES} OpenGL::GL glm)
 target_include_directories(${PROJECT_NAME} PUBLIC include dependencies/stb_image dependencies/glfw/include dependencies/glad/include)

@@ -1,3 +1,5 @@
+#include "glm/ext/matrix_float4x4.hpp"
+#include "glm/gtc/type_ptr.hpp"
 #include <cstdio>
 #include <filesystem>
 #include <format>
@@ -7,6 +9,8 @@
 #include <shader.h>
 #include <sstream>
 #include <string>
+
+using glm::mat4;
 
 unsigned int compileShader(unsigned int shaderType, const char **shaderSource) {
   unsigned int shader = glCreateShader(shaderType);
@@ -19,16 +23,16 @@ unsigned int compileShader(unsigned int shaderType, const char **shaderSource) {
 
   if (!success) {
     glGetShaderInfoLog(shader, 512, NULL, infoLog);
-    std::cerr << std::format("ERROR::SHADER::{}::COMPILATION_FAILED\n",
-                             shaderType)
+    std::cerr << std::format(
+                     "ERROR::SHADER::{}::COMPILATION_FAILED\n", shaderType)
               << infoLog << std::endl;
   }
 
   return shader;
 }
 
-unsigned int createShaderProgram(unsigned int vertexShader,
-                                 unsigned int fragmentShader) {
+unsigned int
+createShaderProgram(unsigned int vertexShader, unsigned int fragmentShader) {
   unsigned int shaderProgram = glCreateProgram();
   glAttachShader(shaderProgram, vertexShader);
   glAttachShader(shaderProgram, fragmentShader);
@@ -81,7 +85,9 @@ Shader::Shader(const char *vertexPath, const char *fragmentPath) {
   this->id = createShaderProgram(vertex, fragment);
 }
 
-void Shader::use() { glUseProgram(this->id); }
+int Shader::getId() const { return this->id; }
+
+void Shader::use() const { glUseProgram(this->id); }
 
 void Shader::setBool(const std::string &name, bool value) const {
   glUniform1i(glGetUniformLocation(this->id, name.c_str()), (int)value);
@@ -93,4 +99,12 @@ void Shader::setInt(const std::string &name, int value) const {
 
 void Shader::setFloat(const std::string &name, float value) const {
   glUniform1f(glGetUniformLocation(this->id, name.c_str()), value);
+}
+
+void Shader::setMatrix4(const std::string &name, mat4 value) const {
+  glUniformMatrix4fv(
+      glGetUniformLocation(this->id, name.c_str()),
+      1,
+      GL_FALSE,
+      value_ptr(value));
 }

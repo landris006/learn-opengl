@@ -1,1 +1,4 @@
 AccessModifierOffset: -1
+AlignAfterOpenBracket: AlwaysBreak
+BinPackArguments: false
+BinPackParameters: false
