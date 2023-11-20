@@ -90,7 +90,8 @@ int Shader::getId() const { return this->id; }
 void Shader::use() const { glUseProgram(this->id); }
 
 void Shader::setBool(const std::string &name, bool value) const {
-  glUniform1i(glGetUniformLocation(this->id, name.c_str()), (int)value);
+  glUniform1i(
+      glGetUniformLocation(this->id, name.c_str()), static_cast<int>(value));
 }
 
 void Shader::setInt(const std::string &name, int value) const {

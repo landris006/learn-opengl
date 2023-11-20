@@ -1,4 +1,5 @@
 #include "glm/ext/matrix_clip_space.hpp"
+#include <cstdio>
 #include <sys/types.h>
 #define GLFW_INCLUDE_NONE
 #include "glm/ext/matrix_float4x4.hpp"
@@ -14,9 +15,33 @@
 #include <shader.h>
 #include <stb_image.h>
 
-void processInput(GLFWwindow *window) {
+float deltaTime = 0.0f;
+float lastFrame = 0.0f;
+
+glm::vec3 cameraPos = glm::vec3(0.0f, 0.0f, 3.0f);
+glm::vec3 cameraFront = glm::vec3(0.0f, 0.0f, -1.0f);
+glm::vec3 cameraUp = glm::vec3(0.0f, 1.0f, 0.0f);
+
+float yaw = -90.0f;
+float pitch = -90.0f;
+float lastX = 400, lastY = 300;
+
+void processInput(GLFWwindow *window, float deltaTime) {
   if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
     glfwSetWindowShouldClose(window, true);
+
+  const float cameraSpeed = 1.0 * deltaTime;
+
+  if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
+    cameraPos += cameraSpeed * cameraFront;
+  if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
+    cameraPos -= cameraSpeed * cameraFront;
+  if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
+    cameraPos -=
+        glm::normalize(glm::cross(cameraFront, cameraUp)) * cameraSpeed;
+  if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
+    cameraPos +=
+        glm::normalize(glm::cross(cameraFront, cameraUp)) * cameraSpeed;
 }
 
 struct Vertex {
@@ -104,9 +129,7 @@ void render(const Shader &shaderProgram) {
 
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
 
-  glm::mat4 view = glm::mat4(1.0f);
-  // note that we’re translating the scene in the reverse direction
-  view = glm::translate(view, glm::vec3(0.0f, 0.0f, -3.0f));
+  glm::mat4 view = glm::lookAt(cameraPos, cameraPos + cameraFront, cameraUp);
 
   glm::mat4 projection;
   projection =
@@ -218,6 +241,31 @@ int run() {
         glViewport(0, 0, width, height);
       });
 
+  glfwSetCursorPosCallback(
+      window, [](GLFWwindow *window, double xpos, double ypos) -> void {
+        float xoffset = xpos - lastX;
+        float yoffset = lastY - ypos; // reversed: y ranges bottom to top
+        lastX = xpos;
+        lastY = ypos;
+        const float sensitivity = 0.1f;
+        xoffset *= sensitivity;
+        yoffset *= sensitivity;
+
+        yaw += xoffset;
+        pitch += yoffset;
+
+        if (pitch > 89.0f)
+          pitch = 89.0f;
+        if (pitch < -89.0f)
+          pitch = -89.0f;
+
+        glm::vec3 direction;
+        direction.x = cos(glm::radians(yaw)) * cos(glm::radians(pitch));
+        direction.y = sin(glm::radians(pitch));
+        direction.z = sin(glm::radians(yaw)) * cos(glm::radians(pitch));
+        cameraFront = glm::normalize(direction);
+      });
+
   Shader shaderProgram("shaders/vertex.glsl", "shaders/fragment.glsl");
 
   glTexParameteri(
@@ -229,8 +277,14 @@ int run() {
   loadTextures();
   loadTextures();
 
+  glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_HIDDEN);
+
   while (!glfwWindowShouldClose(window)) {
-    processInput(window);
+    float currentFrame = glfwGetTime();
+    deltaTime = currentFrame - lastFrame;
+    lastFrame = currentFrame;
+
+    processInput(window, deltaTime);
 
     render(shaderProgram);
 
