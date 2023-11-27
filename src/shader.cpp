@@ -85,9 +85,13 @@ Shader::Shader(const char *vertexPath, const char *fragmentPath) {
   this->id = createShaderProgram(vertex, fragment);
 }
 
-int Shader::getId() const { return this->id; }
+int Shader::getId() const {
+  return this->id;
+}
 
-void Shader::use() const { glUseProgram(this->id); }
+void Shader::use() const {
+  glUseProgram(this->id);
+}
 
 void Shader::setBool(const std::string &name, bool value) const {
   glUniform1i(

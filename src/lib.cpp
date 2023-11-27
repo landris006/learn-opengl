@@ -1,4 +1,9 @@
 #include "glm/ext/matrix_clip_space.hpp"
+#include "glm/ext/quaternion_float.hpp"
+#include "glm/gtc/type_ptr.hpp"
+#include "glm/gtx/quaternion.hpp"
+#include "glm/gtx/string_cast.hpp"
+#include <camera.h>
 #include <cstdio>
 #include <sys/types.h>
 #define GLFW_INCLUDE_NONE
@@ -14,16 +19,18 @@
 #include <math.h>
 #include <shader.h>
 #include <stb_image.h>
+#include <transform.h>
+
+const float VIEWPORT_WIDTH = 1600.0f;
+const float VIEWPORT_HEIGHT = 800.0f;
+
+Camera camera = Camera();
 
 float deltaTime = 0.0f;
 float lastFrame = 0.0f;
 
-glm::vec3 cameraPos = glm::vec3(0.0f, 0.0f, 3.0f);
-glm::vec3 cameraFront = glm::vec3(0.0f, 0.0f, -1.0f);
-glm::vec3 cameraUp = glm::vec3(0.0f, 1.0f, 0.0f);
+bool firstMouse = true;
 
-float yaw = -90.0f;
-float pitch = -90.0f;
 float lastX = 400, lastY = 300;
 
 void processInput(GLFWwindow *window, float deltaTime) {
@@ -32,16 +39,17 @@ void processInput(GLFWwindow *window, float deltaTime) {
 
   const float cameraSpeed = 1.0 * deltaTime;
 
+  glm::vec3 front = camera.front();
+  glm::vec3 right = camera.right();
+
   if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
-    cameraPos += cameraSpeed * cameraFront;
+    camera.translation += cameraSpeed * front;
   if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
-    cameraPos -= cameraSpeed * cameraFront;
+    camera.translation -= cameraSpeed * front;
   if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
-    cameraPos -=
-        glm::normalize(glm::cross(cameraFront, cameraUp)) * cameraSpeed;
+    camera.translation -= cameraSpeed * right;
   if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
-    cameraPos +=
-        glm::normalize(glm::cross(cameraFront, cameraUp)) * cameraSpeed;
+    camera.translation += cameraSpeed * right;
 }
 
 struct Vertex {
@@ -49,12 +57,6 @@ struct Vertex {
   glm::vec2 texCoord;
 };
 
-// Vertex vertices[] = {
-//     {.position = {0.5f, 0.5f, 0.0f}, .texCoord = {1.0, 1.0}},
-//     {.position = {0.5f, -0.5f, 0.0f}, .texCoord = {1.0, 0.0}},
-//     {.position = {-0.5f, -0.5f, 0.0f}, .texCoord = {0.0, 0.0}},
-//     {.position = {-0.5f, 0.5f, 0.0f}, .texCoord = {0.0, 1.0}}};
-// unsigned int indices[] = {3, 2, 1, 3, 1, 0};
 float vertices[] = {
     -0.5f, -0.5f, -0.5f, 0.0f,  0.0f,  0.5f,  -0.5f, -0.5f, 1.0f,  0.0f,  0.5f,
     0.5f,  -0.5f, 1.0f,  1.0f,  0.5f,  0.5f,  -0.5f, 1.0f,  1.0f,  -0.5f, 0.5f,
@@ -88,12 +90,17 @@ glm::vec3 cubePositions[] = {
 
 void render(const Shader &shaderProgram) {
   glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
-  glClear(GL_COLOR_BUFFER_BIT);
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
   unsigned int vertexArrayObject;
   glGenVertexArrays(1, &vertexArrayObject);
   glBindVertexArray(vertexArrayObject);
+
+  unsigned int vertexBufferObject;
+  glGenBuffers(1, &vertexBufferObject);
+  glBindBuffer(GL_ARRAY_BUFFER, vertexBufferObject);
+  glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+
   glVertexAttribPointer(
       0,
       3,
@@ -112,28 +119,20 @@ void render(const Shader &shaderProgram) {
       (const void *)(offsetof(Vertex, texCoord)));
   glEnableVertexAttribArray(1);
 
-  unsigned int vertexBufferObject;
-  glGenBuffers(1, &vertexBufferObject);
-  glBindBuffer(GL_ARRAY_BUFFER, vertexBufferObject);
-  glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
-
-  // unsigned int elementBufferObject;
-  // glGenBuffers(1, &elementBufferObject);
-  // glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, elementBufferObject);
-  // glBufferData(
-  //     GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
-
   shaderProgram.use();
   shaderProgram.setInt("texture1", 0);
   shaderProgram.setInt("texture2", 1);
 
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
 
-  glm::mat4 view = glm::lookAt(cameraPos, cameraPos + cameraFront, cameraUp);
+  glm::mat4 view = camera.getViewMatrix();
 
   glm::mat4 projection;
-  projection =
-      glm::perspective(glm::radians(90.0f), 800.0f / 600.0f, 0.1f, 100.0f);
+  projection = glm::perspective(
+      glm::radians(camera.vfov),
+      VIEWPORT_WIDTH / VIEWPORT_HEIGHT,
+      0.1f,
+      100.0f);
 
   shaderProgram.setMatrix4("view", view);
   shaderProgram.setMatrix4("projection", projection);
@@ -220,7 +219,8 @@ int run() {
   glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
   glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
-  GLFWwindow *window = glfwCreateWindow(800, 600, "LearnOpenGL", NULL, NULL);
+  GLFWwindow *window = glfwCreateWindow(
+      VIEWPORT_WIDTH, VIEWPORT_HEIGHT, "LearnOpenGL", NULL, NULL);
   if (window == NULL) {
     std::cerr << "Failed to create GLFW window" << std::endl;
     glfwTerminate();
@@ -234,40 +234,6 @@ int run() {
     return -1;
   }
 
-  glViewport(0, 0, 800, 600);
-
-  glfwSetFramebufferSizeCallback(
-      window, [](GLFWwindow *window, int width, int height) -> void {
-        glViewport(0, 0, width, height);
-      });
-
-  glfwSetCursorPosCallback(
-      window, [](GLFWwindow *window, double xpos, double ypos) -> void {
-        float xoffset = xpos - lastX;
-        float yoffset = lastY - ypos; // reversed: y ranges bottom to top
-        lastX = xpos;
-        lastY = ypos;
-        const float sensitivity = 0.1f;
-        xoffset *= sensitivity;
-        yoffset *= sensitivity;
-
-        yaw += xoffset;
-        pitch += yoffset;
-
-        if (pitch > 89.0f)
-          pitch = 89.0f;
-        if (pitch < -89.0f)
-          pitch = -89.0f;
-
-        glm::vec3 direction;
-        direction.x = cos(glm::radians(yaw)) * cos(glm::radians(pitch));
-        direction.y = sin(glm::radians(pitch));
-        direction.z = sin(glm::radians(yaw)) * cos(glm::radians(pitch));
-        cameraFront = glm::normalize(direction);
-      });
-
-  Shader shaderProgram("shaders/vertex.glsl", "shaders/fragment.glsl");
-
   glTexParameteri(
       GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
@@ -277,7 +243,51 @@ int run() {
   loadTextures();
   loadTextures();
 
-  glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_HIDDEN);
+  glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+
+  glViewport(0, 0, VIEWPORT_WIDTH, VIEWPORT_HEIGHT);
+
+  glfwSetFramebufferSizeCallback(
+      window, [](GLFWwindow *window, int width, int height) -> void {
+        glViewport(0, 0, width, height);
+      });
+
+  glfwSetCursorPosCallback(
+      window, [](GLFWwindow *window, double xpos, double ypos) -> void {
+        float xoffset = xpos - lastX;
+        float yoffset = ypos - lastY;
+        lastX = xpos;
+        lastY = ypos;
+        const float sensitivity = 0.1f;
+        xoffset *= sensitivity;
+        yoffset *= sensitivity;
+
+        float newPitch = camera.pitch() - yoffset;
+        float newYaw = camera.yaw() + xoffset;
+
+        if (newPitch < -89.0f)
+          newPitch = -89.0f;
+        if (newPitch > 89.0f)
+          newPitch = 89.0f;
+
+        camera.setEuler(newPitch, newYaw, 0.0f);
+      });
+
+  glfwSetScrollCallback(
+      window, [](GLFWwindow *window, double xoffset, double yoffset) -> void {
+        float newVfov = camera.vfov - yoffset;
+        if (newVfov < 1.0f)
+          newVfov = 1.0f;
+        if (newVfov > 45.0f)
+          newVfov = 45.0f;
+
+        camera.vfov = newVfov;
+      });
+
+  Shader shaderProgram("shaders/vertex.glsl", "shaders/fragment.glsl");
+  camera.translation = glm::vec3(0.0f, 0.0f, 3.0f);
+  camera.vfov = 45.0f;
+  // camera.lookAt(glm::vec3(0.0f, 0.0f, 2.0f));
 
   while (!glfwWindowShouldClose(window)) {
     float currentFrame = glfwGetTime();
