@@ -5,6 +5,7 @@
 #include "glm/gtx/quaternion.hpp"
 #include "glm/gtx/string_cast.hpp"
 #include <camera.h>
+#include <cmath>
 #include <cstdio>
 #include <sys/types.h>
 #define GLFW_INCLUDE_NONE
@@ -22,6 +23,7 @@
 #include <stb_image.h>
 #include <transform.h>
 
+using glm::vec2;
 using glm::vec3;
 
 static float VIEWPORT_WIDTH = 1600.0f;
@@ -35,6 +37,20 @@ float lastFrame = 0.0f;
 bool firstMouse = true;
 
 float lastX = 400, lastY = 300;
+
+struct Vertex {
+  vec3 position;
+  vec3 normal;
+  vec2 texCoord;
+};
+
+struct Material {
+  vec3 albedo;
+  vec3 ambient;
+  vec3 diffuse;
+  vec3 specular;
+  float shininess;
+};
 
 void processInput(GLFWwindow *window, float deltaTime) {
   if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
@@ -64,12 +80,6 @@ void processInput(GLFWwindow *window, float deltaTime) {
     camera.translation -= cameraSpeed * vec3(0.0f, 1.0f, 0.0f);
   }
 }
-
-struct Vertex {
-  vec3 position;
-  vec3 normal;
-  glm::vec2 texCoord;
-};
 
 float vertices[] = {
     // positions // normals // texture coords
@@ -137,18 +147,31 @@ void render(const Shader &shaderProgram, const Shader &lightShaderProgram) {
   glm::mat4 view = camera.getViewMatrix();
   glm::mat4 projection = camera.getProjectionMatrix();
 
-  float lightX = 1.0f + sin(glfwGetTime()) * 2.0f;
-  float lightY = sin(glfwGetTime() / 2.0f) * 1.0f;
-  vec3 lightPos = vec3(lightX, lightY, 2.0f);
+  float lightX = 0.0f;
+  float lightY = 2.0f;
+  vec3 lightPos = vec3(lightX, lightY, 0.0f);
 
   shaderProgram.use();
   shaderProgram.setMatrix4("model", model);
   shaderProgram.setMatrix4("view", view);
   shaderProgram.setMatrix4("projection", projection);
-  shaderProgram.setVec3("objectColor", vec3(1.0f, 0.5f, 0.31f));
-  shaderProgram.setVec3("lightColor", vec3(1.0f, 1.0f, 1.0f));
-  shaderProgram.setVec3("lightPos", lightPos);
-  shaderProgram.setVec3("viewPos", camera.translation);
+
+  shaderProgram.setVec3("material.ambient", vec3(1.0f, 0.5f, 0.31f));
+  shaderProgram.setVec3("material.diffuse", vec3(1.0f, 0.5f, 0.31f));
+  shaderProgram.setVec3("material.specular", vec3(0.5f, 0.5f, 0.5f));
+  shaderProgram.setFloat("material.shininess", 32.0f);
+
+  glm::vec3 lightColor;
+  lightColor.x = sin(glfwGetTime() * 2.0f);
+  lightColor.y = sin(glfwGetTime() * 0.7f);
+  lightColor.z = sin(glfwGetTime() * 1.0f);
+  glm::vec3 diffuseColor = lightColor * glm::vec3(0.5f);
+  glm::vec3 ambientColor = diffuseColor * glm::vec3(0.2f);
+
+  shaderProgram.setVec3("light.ambient", ambientColor);
+  shaderProgram.setVec3("light.diffuse", diffuseColor);
+  shaderProgram.setVec3("light.specular", vec3(1.0f));
+  shaderProgram.setVec3("light.position", lightPos);
 
   glDrawArrays(GL_TRIANGLES, 0, 36);
 
@@ -172,10 +195,14 @@ void render(const Shader &shaderProgram, const Shader &lightShaderProgram) {
   lightShaderProgram.setMatrix4("model", model);
   lightShaderProgram.setMatrix4("view", view);
   lightShaderProgram.setMatrix4("projection", projection);
+  lightShaderProgram.setVec3("lightColor", lightColor);
 
   glDrawArrays(GL_TRIANGLES, 0, 36);
 
   glBindVertexArray(0);
+
+  std::cout << "render took " << std::round(deltaTime * 100) / 100 << " ms"
+            << "(" << std::round(1 / deltaTime) << " fps)" << std::endl;
 }
 
 void loadTextures() {
