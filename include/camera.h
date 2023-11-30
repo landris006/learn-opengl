@@ -17,9 +17,16 @@ class Camera : public Transform {
  public:
   Camera() {}
 
-  float vfov;
+  float vfov = 45.0f;
+  float viewportWidth = 1600.0f;
+  float viewportHeight = 800.0f;
 
   glm::mat4 getViewMatrix() const {
     return glm::lookAt(translation, translation + front(), up());
+  }
+
+  glm::mat4 getProjectionMatrix() const {
+    return glm::perspective(
+        glm::radians(vfov), viewportWidth / viewportHeight, 0.1f, 100.0f);
   }
 };
